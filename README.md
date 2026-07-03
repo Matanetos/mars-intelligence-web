@@ -1,3 +1,3 @@
-# MARS Intelligence Web v0.3
+# MARS Intelligence Web v0.4
 
-Inclui módulo de Pesquisa Etsy assistida.
+Inclui ficha rápida de análise de produto.
