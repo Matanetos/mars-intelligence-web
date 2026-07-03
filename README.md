@@ -1,3 +1,3 @@
-# MARS Intelligence Web v0.7
+# MARS Intelligence Web v0.8
 
-Inclui Importação em Lote por tabela colada, template Excel e limpeza automática.
+Inclui Ficha de Produto e Comparador MARS vs Mercado.
