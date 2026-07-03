@@ -1,3 +1,3 @@
-# MARS Intelligence Web v0.5
+# MARS Intelligence Web v0.6
 
-Inclui módulos: Mercado, Produtos MARS, Roadmap e exportação SQL.
+Inclui Radar MARS e calculadora de Produção/Custos.
