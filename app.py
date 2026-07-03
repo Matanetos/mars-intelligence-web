@@ -20,7 +20,8 @@ def price(v):
     except: return None
 
 def normalize(df):
-    df=df.copy(); df.columns=[str(c).strip().upper() for c in df.columns]
+    df=df.copy()
+    df.columns=[str(c).strip().upper() for c in df.columns]
     for c in COLS:
         if c not in df.columns: df[c]=""
     return df[COLS]
@@ -51,6 +52,7 @@ def prepare(df):
     df=normalize(df)
     df["PREÇO LIMPO"]=df["PREÇO (€)"].apply(price)
     df["PORTES LIMPO"]=df["PORTES (€)"].apply(price)
+    df["RISCO PI"]=df.apply(lambda r: auto_risk(str(r["PRODUTO"])+" "+str(r["OBSERVAÇÕES"])) if str(r["RISCO PI"]).strip()=="" else r["RISCO PI"], axis=1)
     df=df.drop_duplicates(subset=["LOJA","PRODUTO","LINK"], keep="first")
     df["MARS SCORE"]=df.apply(score,axis=1)
     df["VALE ESTUDAR?"]=df["MARS SCORE"].apply(lambda x:"Sim" if x>=65 else "Talvez" if x>=50 else "Não")
@@ -79,8 +81,8 @@ def empty_mars(): return pd.DataFrame(columns=MARS_COLS)
 if "manual" not in st.session_state: st.session_state.manual=empty_market()
 if "mars" not in st.session_state: st.session_state.mars=empty_mars()
 
-st.sidebar.title("🪐 MARS Intelligence"); st.sidebar.caption("v0.6")
-page=st.sidebar.radio("Menu",["🏠 Dashboard","🚨 Radar MARS","➕ Novo Produto","📦 Produtos","🏪 Lojas","📦 Produtos MARS","🧩 Roadmap","🧮 Produção/Custos","💰 Preços","⚠️ Risco PI","💡 Oportunidades","📤 Exportar"])
+st.sidebar.title("🪐 MARS Intelligence"); st.sidebar.caption("v0.7")
+page=st.sidebar.radio("Menu",["🏠 Dashboard","🚨 Radar MARS","📥 Importação em Lote","➕ Novo Produto","📦 Produtos","🏪 Lojas","📦 Produtos MARS","🧩 Roadmap","🧮 Produção/Custos","💰 Preços","⚠️ Risco PI","💡 Oportunidades","📤 Exportar"])
 up=st.sidebar.file_uploader("Carregar Excel/CSV",type=["xlsx","xls","csv"])
 if up: st.session_state.base=load(up)
 base=st.session_state.get("base")
@@ -99,7 +101,33 @@ if df is not None:
     if ve: f=f[f["VALE ESTUDAR?"].isin(ve)]
 else: f=None
 
-if page=="🏠 Dashboard":
+if page=="📥 Importação em Lote":
+    st.title("📥 Importação em Lote")
+    st.caption("Cola várias linhas copiadas do Excel/EverBee. A app normaliza, remove duplicados, calcula risco PI e MARS SCORE.")
+    st.download_button("⬇️ Descarregar template Excel", to_excel(pd.DataFrame(columns=COLS), "PRODUTOS"), "MARS_template_produtos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    txt=st.text_area("Colar tabela TSV/CSV", height=250, placeholder="LOJA\\tPRODUTO\\tCATEGORIA...\\nLoja A\\tProduto A\\tHeadphone Stand...")
+    sep=st.selectbox("Separador", ["Tabulação", "Ponto e vírgula", "Vírgula"])
+    if st.button("Pré-visualizar importação") and txt.strip():
+        delimiter={"Tabulação":"\t","Ponto e vírgula":";","Vírgula":","}[sep]
+        try:
+            imported=pd.read_csv(io.StringIO(txt), sep=delimiter)
+            imported=prepare(imported)
+            st.session_state.preview_import=imported
+            st.success(f"{len(imported)} produtos preparados.")
+        except Exception as e:
+            st.error(f"Erro ao ler os dados: {e}")
+    if "preview_import" in st.session_state:
+        st.subheader("Pré-visualização")
+        st.dataframe(st.session_state.preview_import,use_container_width=True)
+        c1,c2=st.columns(2)
+        with c1:
+            if st.button("Adicionar à sessão"):
+                st.session_state.manual=pd.concat([st.session_state.manual, st.session_state.preview_import[COLS]], ignore_index=True)
+                st.success("Produtos adicionados.")
+        with c2:
+            st.download_button("⬇️ Exportar importação limpa", to_excel(st.session_state.preview_import), "MARS_importacao_lote_limpa.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+elif page=="🏠 Dashboard":
     st.title("🏠 Dashboard Executivo")
     if f is None: st.info("Carrega dados para começar."); st.stop()
     c=st.columns(6)
@@ -167,28 +195,13 @@ elif page=="🏪 Lojas":
 
 elif page=="📦 Produtos MARS":
     st.title("📦 Produtos MARS")
-    with st.form("mars"):
-        c1,c2,c3=st.columns(3)
-        with c1:
-            mp=st.text_input("Produto MARS"); estado=st.selectbox("Estado",["Ideia","Modelação","Protótipo","Teste impressão","Fotografia","Vídeo","Publicado Etsy","Publicado marketplaces","Primeira venda","Otimização"]); catm=st.text_input("Categoria"); tempo=st.text_input("Tempo impressão")
-        with c2:
-            peso=st.text_input("Peso (g)"); custo=st.text_input("Custo estimado (€)"); pvenda=st.text_input("Preço venda (€)"); lucro=st.text_input("Lucro estimado (€)"); margem=st.text_input("Margem (%)")
-        with c3:
-            etsy=st.selectbox("Etsy",["Não","Sim"]); ebay=st.selectbox("eBay",["Não","Sim"]); wall=st.selectbox("Wallapop",["Não","Sim"]); tiktok=st.selectbox("TikTok",["Não","Sim"]); obsm=st.text_area("Observações")
-        add=st.form_submit_button("Adicionar")
-    if add:
-        row=pd.DataFrame([[mp,estado,catm,tempo,peso,custo,pvenda,lucro,margem,etsy,ebay,wall,tiktok,obsm]],columns=MARS_COLS)
-        st.session_state.mars=pd.concat([st.session_state.mars,row],ignore_index=True); st.success("Produto MARS adicionado.")
     st.dataframe(st.session_state.mars,use_container_width=True)
-    if len(st.session_state.mars): st.download_button("⬇️ Exportar Produtos MARS",to_excel(st.session_state.mars,"PRODUTOS_MARS"),"MARS_produtos_proprios.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 elif page=="🧩 Roadmap":
     st.title("🧩 Roadmap")
     if len(st.session_state.mars):
         rr=st.session_state.mars["ESTADO"].value_counts().reset_index(); rr.columns=["Estado","Produtos"]
-        st.plotly_chart(px.bar(rr,x="Estado",y="Produtos"),use_container_width=True); st.dataframe(st.session_state.mars,use_container_width=True)
+        st.plotly_chart(px.bar(rr,x="Estado",y="Produtos"),use_container_width=True)
     else: st.info("Adiciona produtos MARS primeiro.")
-
 elif page=="🧮 Produção/Custos":
     st.title("🧮 Calculadora de Produção e Margem")
     a,b,c=st.columns(3)
@@ -199,27 +212,23 @@ elif page=="🧮 Produção/Custos":
     m=st.columns(6)
     for col,label,val in zip(m,["Material","Energia","Embalagem","Comissões","Custo total","Lucro"],[material,e,emb,fees,total,lucro]): col.metric(label,f"{val:.2f} €")
     st.metric("Margem",f"{margem:.1f}%")
-
 elif page=="💰 Preços":
     st.title("💰 Preços")
     if f is None: st.info("Sem dados."); st.stop()
     p=f.dropna(subset=["PREÇO LIMPO"])
     if len(p): st.plotly_chart(px.histogram(p,x="PREÇO LIMPO",nbins=25),use_container_width=True)
     st.dataframe(p.sort_values("PREÇO LIMPO",ascending=False),use_container_width=True)
-
 elif page=="⚠️ Risco PI":
     st.title("⚠️ Risco PI")
     if f is None: st.info("Sem dados."); st.stop()
     r=f["RISCO PI"].value_counts().reset_index(); r.columns=["Risco","Produtos"]
     if len(r): st.plotly_chart(px.pie(r,names="Risco",values="Produtos"),use_container_width=True)
     st.dataframe(f[f["RISCO PI"].astype(str).str.lower()=="alto"],use_container_width=True)
-
 elif page=="💡 Oportunidades":
     st.title("💡 Oportunidades")
     if f is None: st.info("Sem dados."); st.stop()
     o=f[(f["MARS SCORE"]>=65)&(f["RISCO PI"].astype(str).str.lower().isin(["baixo","médio","medio"]))].sort_values("MARS SCORE",ascending=False)
     st.dataframe(o,use_container_width=True,height=650)
-
 elif page=="📤 Exportar":
     st.title("📤 Exportar")
     if f is None: st.info("Sem dados."); st.stop()
