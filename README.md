@@ -1,3 +1,3 @@
-# MARS Intelligence Web v0.4
+# MARS Intelligence Web v0.5
 
-Inclui ficha rápida de análise de produto.
+Inclui módulos: Mercado, Produtos MARS, Roadmap e exportação SQL.
